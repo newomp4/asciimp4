@@ -397,7 +397,7 @@ $('run-btn').addEventListener('click', () => {
       const res = safeJSON(result, 'renderASCII');
       if (res) {
         if (res.error) log('Render error: ' + res.error, 'err');
-        else log('Done! Comp: ' + res.compName + ' (' + res.frames + ' frames)', 'ok');
+        else log('Done! Open "' + res.compName + '" — expression-driven, live on every frame.', 'ok');
       }
       setProgress(100);
     });

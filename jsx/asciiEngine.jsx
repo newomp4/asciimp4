@@ -184,76 +184,101 @@ var asciiEngine = (function() {
     ];
   }
 
-  /* ── Main render function ──
-     One text layer per row, Source Text keyframed per frame.
-     This keeps layer count at O(rows) instead of O(rows × frames),
-     which is what was crashing AE before.
+  /* ── Encode a string safely for embedding inside an expression's string literal ── */
+  function exprStr(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if      (c === 92) out += '\\\\';
+      else if (c === 34) out += '\\"';
+      else if (c < 32 || c > 126) out += '\\u' + ('000' + c.toString(16)).slice(-4);
+      else out += s.charAt(i);
+    }
+    return out;
+  }
+
+  /* ── Main render function — expression-based ──
+     Creates ONE text layer with a Source Text expression.
+     The expression samples the source video and builds the full
+     ASCII frame on every frame AE renders — no pre-computation,
+     no layer explosion, no crash.
   ── */
   function render(comp, srcLayer, cfg) {
-    var frameRate  = comp.frameRate;
-    var duration   = comp.duration;
-    var frameStep  = parseInt(cfg.frameStep) || 1;
-    var totalFrames = Math.floor(duration * frameRate);
-
     var outComp = createOutputComp(comp, cfg);
-    var grid = buildGrid(comp, srcLayer, cfg, 0);
-    var colorPalette = colorEngine.buildPalette(cfg);
-    var baseColor = hexToAEColor(cfg.colorPrimary || '#ffffff');
 
-    // ── Create one persistent text layer per row ──
-    var rowProps = []; // { textProp }
-    for (var row = 0; row < grid.rows; row++) {
-      var textLayer = outComp.layers.addText(' ');
-      var textProp  = textLayer.property("Source Text");
-      var td = textProp.value;
-      td.font            = cfg.outFont || 'Courier New';
-      td.fontSize        = grid.cellW * 0.9;
-      td.justification   = ParagraphJustification.LEFT_JUSTIFY;
-      td.fillColor       = baseColor;
-      td.tracking        = parseInt(cfg.tracking) || 0;
-      textProp.setValue(td);
+    var SETS = {
+      standard: " .`'^\",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$",
+      numbers:  " 1234567890",
+      binary:   " 01",
+      letters:  " abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      symbols:  " .,-~:;=!*#$@",
+      blocks:   " ░▒▓█",
+      hex:      " 0123456789abcdef"
+    };
+    var rawRamp = cfg.charSet === 'custom'
+      ? (cfg.customChars || ' .:-=+*#@')
+      : (SETS[cfg.charSet] || SETS.standard);
 
-      var y = row * grid.cellH + grid.cellH / 2;
-      textLayer.property("Position").setValue([0, y]);
-      textLayer.property("Anchor Point").setValue([0, grid.cellH / 2]);
-      textLayer.inPoint  = 0;
-      textLayer.outPoint = duration;
+    var cs       = parseInt(cfg.cellSize) || 14;
+    var thresh   = ((cfg.lumaThresh  || 20)  / 255).toFixed(5);
+    var aThresh  = ((cfg.alphaThresh || 128) / 255).toFixed(5);
+    var contrast = ((cfg.contrast    || 100) / 100).toFixed(5);
+    var gamma    = ((cfg.gamma       || 100) / 100).toFixed(5);
+    var inv      = cfg.invertMap ? 'true' : 'false';
+    var useA     = cfg.useAlpha  ? 'true' : 'false';
 
-      rowProps.push(textProp);
-    }
+    // Build the expression string — runs inside AE's JS expression engine
+    var expr = [
+      'var src = thisComp.layer("' + exprStr(srcLayer.name) + '");',
+      'var W = thisComp.width, H = thisComp.height;',
+      'var cs = ' + cs + ';',
+      'var cols = Math.floor(W/cs), rows = Math.floor(H/cs);',
+      'var ramp = "' + exprStr(rawRamp) + '";',
+      'var thresh = ' + thresh + ', aT = ' + aThresh + ';',
+      'var con = ' + contrast + ', gam = ' + gamma + ';',
+      'var inv = ' + inv + ', useA = ' + useA + ';',
+      'var lines = [];',
+      'for (var r = 0; r < rows; r++) {',
+      '  var line = "";',
+      '  for (var c = 0; c < cols; c++) {',
+      '    var p = src.sampleImage([(c+0.5)*cs - W/2, (r+0.5)*cs - H/2], [0.5,0.5], true, time);',
+      '    if (useA && p[3] < aT) { line += " "; continue; }',
+      '    var L = 0.299*p[0] + 0.587*p[1] + 0.114*p[2];',
+      '    L = (L - 0.5)*con + 0.5;',
+      '    if (gam !== 1) L = Math.pow(L < 0 ? 0 : L, 1/gam);',
+      '    if (L < 0) L = 0; if (L > 1) L = 1;',
+      '    if (L < thresh) { line += " "; continue; }',
+      '    var t = inv ? 1-L : L;',
+      '    var idx = Math.floor(t*(ramp.length-1));',
+      '    if (idx < 0) idx = 0; if (idx >= ramp.length) idx = ramp.length-1;',
+      '    line += ramp.charAt(idx);',
+      '  }',
+      '  lines[lines.length] = line;',
+      '}',
+      'lines.join("\\r")'
+    ].join('\n');
 
-    // ── Keyframe each row's Source Text per frame ──
-    var processedFrames = 0;
-    for (var frameIdx = 0; frameIdx < totalFrames; frameIdx += frameStep) {
-      var time = frameIdx / frameRate;
+    // One text layer for the whole comp
+    var textLayer = outComp.layers.addText(' ');
+    var textProp  = textLayer.property("Source Text");
+    var td = textProp.value;
+    td.font          = cfg.outFont || 'Courier New';
+    td.fontSize      = cs * 0.85;
+    td.justification = ParagraphJustification.LEFT_JUSTIFY;
+    td.fillColor     = hexToAEColor(cfg.colorPrimary || '#ffffff');
+    td.tracking      = parseInt(cfg.tracking) || 0;
+    td.leading       = cs;
+    textProp.setValue(td);
 
-      if (cfg.dynamicScale) {
-        grid = buildGrid(comp, srcLayer, cfg, time);
-      }
+    textLayer.property("Position").setValue([0, cs]);
+    textLayer.property("Anchor Point").setValue([0, cs / 2]);
+    textLayer.inPoint  = 0;
+    textLayer.outPoint = comp.duration;
 
-      // Shallow-copy cfg so we can attach _hueOffset without JSON round-trip
-      var frameCfg = cfg;
-      if (cfg.analogCycle && cfg.cycleSpeed) {
-        frameCfg = {};
-        for (var fk in cfg) { if (cfg.hasOwnProperty(fk)) frameCfg[fk] = cfg[fk]; }
-        frameCfg._hueOffset = (time * (cfg.cycleSpeed || 30)) % 360;
-      }
+    // Attach the expression — AE re-evaluates this every frame at render time
+    textProp.expression = expr;
 
-      for (var row2 = 0; row2 < grid.rows; row2++) {
-        if (row2 >= rowProps.length) continue;
-
-        var rowChars = buildRowString(srcLayer, row2, grid, frameCfg, time);
-        var rowColor = colorEngine.getRowColor(row2, grid.rows, time, frameCfg, colorPalette);
-
-        var tdoc = rowProps[row2].value;
-        tdoc.text      = rowChars;
-        tdoc.fillColor = rowColor;
-        rowProps[row2].setValueAtTime(time, tdoc);
-      }
-      processedFrames++;
-    }
-
-    return { compName: outComp.name, frames: processedFrames };
+    return { compName: outComp.name, frames: 1, method: 'expression' };
   }
 
   /* ── Cluster detection ── */
