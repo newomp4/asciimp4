@@ -250,7 +250,7 @@ var asciiEngine = (function() {
       // Render all rows for this frame
       for (var row = 0; row < grid.rows; row++) {
         var rowChars = buildRowString(srcLayer, row, grid, frameCfg, time);
-        if (rowChars.trim().length === 0) continue;
+        if (rowChars.replace(/^\s+|\s+$/g, '').length === 0) continue;
 
         // Determine color for this row
         var cellColor = colorEngine.getRowColor(row, grid.rows, time, frameCfg, colorPalette);
