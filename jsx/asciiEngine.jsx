@@ -237,8 +237,8 @@ var asciiEngine = (function() {
       'try {',
       '  var src = thisComp.layer("' + srcName + '");',
       '  var W = thisComp.width, H = thisComp.height;',
-      '  var cw = ' + cw + '; // char width (horiz sample step)',
-      '  var ch = ' + cs + '; // char height (vert sample step)',
+      '  var cw = ' + cw + ';',
+      '  var ch = ' + cs + ';',
       '  var cols = Math.floor(W/cw), rows = Math.floor(H/ch);',
       '  var ramp = "' + exprStr(rawRamp) + '";',
       '  var thresh = ' + thresh + ', aT = ' + aThresh + ';',
@@ -248,7 +248,10 @@ var asciiEngine = (function() {
       '  for (var r = 0; r < rows; r++) {',
       '    var line = "";',
       '    for (var c = 0; c < cols; c++) {',
-      '      var p = src.sampleImage([(c+0.5)*cw - W/2, (r+0.5)*ch - H/2], [0.5,0.5], true, time);',
+      // fromComp converts comp-space [0,0]=top-left to layer-local space,
+      // handling any position/scale/rotation on the source layer
+      '      var sp = src.fromComp([(c+0.5)*cw, (r+0.5)*ch]);',
+      '      var p = src.sampleImage(sp, [0.5,0.5], true, time);',
       '      if (useA && p[3] < aT) { line += " "; continue; }',
       '      var L = 0.299*p[0] + 0.587*p[1] + 0.114*p[2];',
       '      L = (L - 0.5)*con + 0.5;',
@@ -272,11 +275,9 @@ var asciiEngine = (function() {
     }
 
     // ── Add text layer directly to the source comp ──
-    // No nested comp = no positioning mismatch, expression references
-    // the source layer by index in the same comp context.
     var textLayer = comp.layers.addText(' ');
     textLayer.name   = 'ASCII_Art';
-    textLayer.moveToBeginning(); // sit above other layers
+    textLayer.moveToBeginning();
 
     var textProp = textLayer.property("Source Text");
     var td = textProp.value;
@@ -288,9 +289,10 @@ var asciiEngine = (function() {
     td.leading       = cs;
     textProp.setValue(td);
 
-    // Anchor at baseline of first character so position [0,cs] = top-left
-    textLayer.property("Position").setValue([0, cs]);
-    textLayer.property("Anchor Point").setValue([0, cs]);
+    // Centre the layer in the comp so it covers the full frame.
+    // Anchor at [W/2, H/2] within the text block, position at comp centre.
+    textLayer.property("Position").setValue([comp.width / 2, comp.height / 2]);
+    textLayer.property("Anchor Point").setValue([comp.width / 2, comp.height / 2]);
     textLayer.inPoint  = 0;
     textLayer.outPoint = comp.duration;
 
