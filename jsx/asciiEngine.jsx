@@ -199,12 +199,20 @@ var asciiEngine = (function() {
 
   /* ── Main render function — expression-based ──
      Creates ONE text layer with a Source Text expression.
-     The expression samples the source video and builds the full
-     ASCII frame on every frame AE renders — no pre-computation,
-     no layer explosion, no crash.
+     The expression samples the source video every frame — no
+     pre-computation, no layer explosion, no crash.
+     The output comp is also dropped onto the original timeline.
   ── */
   function render(comp, srcLayer, cfg) {
     var outComp = createOutputComp(comp, cfg);
+
+    // ── Add the source footage as a hidden guide layer inside outComp ──
+    // The expression runs in outComp's context, so the source must live there.
+    var guideLayer = outComp.layers.add(srcLayer.source);
+    guideLayer.enabled  = false;
+    guideLayer.name     = '__src__';
+    guideLayer.inPoint  = 0;
+    guideLayer.outPoint = outComp.duration;
 
     var SETS = {
       standard: " .`'^\",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$",
@@ -227,56 +235,62 @@ var asciiEngine = (function() {
     var inv      = cfg.invertMap ? 'true' : 'false';
     var useA     = cfg.useAlpha  ? 'true' : 'false';
 
-    // Build the expression string — runs inside AE's JS expression engine
+    // Expression runs inside AE's JS engine, in the context of outComp.
+    // Source layer is referenced by name '__src__' (added above).
     var expr = [
-      'var src = thisComp.layer("' + exprStr(srcLayer.name) + '");',
-      'var W = thisComp.width, H = thisComp.height;',
-      'var cs = ' + cs + ';',
-      'var cols = Math.floor(W/cs), rows = Math.floor(H/cs);',
-      'var ramp = "' + exprStr(rawRamp) + '";',
-      'var thresh = ' + thresh + ', aT = ' + aThresh + ';',
-      'var con = ' + contrast + ', gam = ' + gamma + ';',
-      'var inv = ' + inv + ', useA = ' + useA + ';',
-      'var lines = [];',
-      'for (var r = 0; r < rows; r++) {',
-      '  var line = "";',
-      '  for (var c = 0; c < cols; c++) {',
-      '    var p = src.sampleImage([(c+0.5)*cs - W/2, (r+0.5)*cs - H/2], [0.5,0.5], true, time);',
-      '    if (useA && p[3] < aT) { line += " "; continue; }',
-      '    var L = 0.299*p[0] + 0.587*p[1] + 0.114*p[2];',
-      '    L = (L - 0.5)*con + 0.5;',
-      '    if (gam !== 1) L = Math.pow(L < 0 ? 0 : L, 1/gam);',
-      '    if (L < 0) L = 0; if (L > 1) L = 1;',
-      '    if (L < thresh) { line += " "; continue; }',
-      '    var t = inv ? 1-L : L;',
-      '    var idx = Math.floor(t*(ramp.length-1));',
-      '    if (idx < 0) idx = 0; if (idx >= ramp.length) idx = ramp.length-1;',
-      '    line += ramp.charAt(idx);',
+      'try {',
+      '  var src = thisComp.layer("__src__");',
+      '  var W = thisComp.width, H = thisComp.height;',
+      '  var cs = ' + cs + ';',
+      '  var cols = Math.floor(W/cs), rows = Math.floor(H/cs);',
+      '  var ramp = "' + exprStr(rawRamp) + '";',
+      '  var thresh = ' + thresh + ', aT = ' + aThresh + ';',
+      '  var con = ' + contrast + ', gam = ' + gamma + ';',
+      '  var inv = ' + inv + ', useA = ' + useA + ';',
+      '  var lines = [];',
+      '  for (var r = 0; r < rows; r++) {',
+      '    var line = "";',
+      '    for (var c = 0; c < cols; c++) {',
+      '      var p = src.sampleImage([(c+0.5)*cs - W/2, (r+0.5)*cs - H/2], [0.5,0.5], true, time);',
+      '      if (useA && p[3] < aT) { line += " "; continue; }',
+      '      var L = 0.299*p[0] + 0.587*p[1] + 0.114*p[2];',
+      '      L = (L - 0.5)*con + 0.5;',
+      '      if (gam !== 1) L = Math.pow(L < 0 ? 0 : L, 1/gam);',
+      '      if (L < 0) L = 0; if (L > 1) L = 1;',
+      '      if (L < thresh) { line += " "; continue; }',
+      '      var t = inv ? 1-L : L;',
+      '      var idx = Math.floor(t*(ramp.length-1));',
+      '      if (idx < 0) idx = 0; if (idx >= ramp.length) idx = ramp.length-1;',
+      '      line += ramp.charAt(idx);',
+      '    }',
+      '    lines[lines.length] = line;',
       '  }',
-      '  lines[lines.length] = line;',
-      '}',
-      'lines.join("\\r")'
+      '  lines.join("\\r");',
+      '} catch(e) { "ERR: " + e.toString(); }'
     ].join('\n');
 
-    // One text layer for the whole comp
+    // ── Single text layer spanning the full duration ──
     var textLayer = outComp.layers.addText(' ');
     var textProp  = textLayer.property("Source Text");
     var td = textProp.value;
     td.font          = cfg.outFont || 'Courier New';
-    td.fontSize      = cs * 0.85;
+    td.fontSize      = cs;
     td.justification = ParagraphJustification.LEFT_JUSTIFY;
     td.fillColor     = hexToAEColor(cfg.colorPrimary || '#ffffff');
     td.tracking      = parseInt(cfg.tracking) || 0;
     td.leading       = cs;
     textProp.setValue(td);
 
+    // Position at top-left; baseline of first line sits at y = fontSize
     textLayer.property("Position").setValue([0, cs]);
-    textLayer.property("Anchor Point").setValue([0, cs / 2]);
+    textLayer.property("Anchor Point").setValue([0, 0]);
     textLayer.inPoint  = 0;
     textLayer.outPoint = comp.duration;
 
-    // Attach the expression — AE re-evaluates this every frame at render time
     textProp.expression = expr;
+
+    // ── Drop outComp onto the original comp's timeline ──
+    comp.layers.add(outComp);
 
     return { compName: outComp.name, frames: 1, method: 'expression' };
   }
