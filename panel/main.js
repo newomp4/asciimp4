@@ -10,31 +10,17 @@ function evalScript(code, cb) {
   });
 }
 
-/* ─── Script loader ─── */
-// ASCIIMP4_ENGINE is the entire ExtendScript bundle, pre-built into engine.js.
-// We send it directly via evalScript — no file I/O, no path issues.
-let _scriptsLoaded = false;
-
-function initScripts(cb) {
-  if (_scriptsLoaded) { cb(true); return; }
+/* ─── Engine caller ─── */
+// ExtendScript globals don't reliably persist between separate evalScript calls
+// in all AE/CEP versions. Safest fix: always prepend the full engine so the
+// functions are always in scope for that call. 32KB over IPC is negligible.
+function callEngine(expr, cb) {
   if (!window.ASCIIMP4_ENGINE) {
-    log('engine.js not loaded — check panel files.', 'err');
-    cb(false);
+    if (cb) cb('{"error":"engine.js not loaded"}');
     return;
   }
-  // Append "ok" so we can detect success vs error vs empty
-  evalScript(window.ASCIIMP4_ENGINE + '\n"ok";', result => {
-    if (result === 'ok') {
-      _scriptsLoaded = true;
-      log('Engine ready.', 'ok');
-      cb(true);
-    } else if (!result || result.trim() === '') {
-      log('Engine returned empty — possible ExtendScript syntax error.', 'err');
-      cb(false);
-    } else {
-      log('Engine error: ' + result.slice(0, 200), 'err');
-      cb(false);
-    }
+  evalScript(window.ASCIIMP4_ENGINE + '\n' + expr, result => {
+    if (cb) cb(result == null ? '' : String(result));
   });
 }
 
@@ -375,22 +361,19 @@ function safeJSON(result, label) {
 
 /* ─── Layer selection ─── */
 function grabSelectedLayer(cb) {
-  initScripts(ok => {
-    if (!ok) { if (cb) cb(false); return; }
-    evalScript('asciiHost.getSelectedLayer()', result => {
-      const res = safeJSON(result, 'getSelectedLayer');
-      if (!res) { if (cb) cb(false); return; }
-      if (res.error || !res.index) {
-        log('No layer selected — click a layer in the AE timeline first.', 'err');
-        if (cb) cb(false);
-        return;
-      }
-      state.sourceLayer = res.index;
-      $('selected-layer-name').textContent = res.name;
-      $('selected-layer-name').style.fontStyle = 'normal';
-      log('Using layer: ' + res.name, 'ok');
-      if (cb) cb(true);
-    });
+  callEngine('asciiHost.getSelectedLayer()', result => {
+    const res = safeJSON(result, 'getSelectedLayer');
+    if (!res) { if (cb) cb(false); return; }
+    if (res.error || !res.index) {
+      log('No layer selected — click a layer in the AE timeline first.', 'err');
+      if (cb) cb(false);
+      return;
+    }
+    state.sourceLayer = res.index;
+    $('selected-layer-name').textContent = res.name;
+    $('selected-layer-name').style.fontStyle = 'normal';
+    log('Using layer: ' + res.name, 'ok');
+    if (cb) cb(true);
   });
 }
 
@@ -401,7 +384,7 @@ $('run-btn').addEventListener('click', () => {
   const doRender = () => {
     setProgress(1, 'Starting…');
     log('Starting ASCII render…', 'info');
-    evalScript('asciiHost.renderASCII(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
+    callEngine('asciiHost.renderASCII(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
       const res = safeJSON(result, 'renderASCII');
       if (res) {
         if (res.error) log('Render error: ' + res.error, 'err');
@@ -414,40 +397,34 @@ $('run-btn').addEventListener('click', () => {
   if (!state.sourceLayer) {
     grabSelectedLayer(ok => { if (ok) doRender(); });
   } else {
-    initScripts(ok => { if (ok) doRender(); });
+    doRender();
   }
 });
 
 /* ─── Build Overlay ─── */
 $('btn-build-overlay').addEventListener('click', () => {
-  initScripts(ok => {
-    if (!ok) return;
-    log('Building data overlay…', 'info');
-    evalScript('asciiHost.buildOverlay(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
-      const res = safeJSON(result, 'buildOverlay');
-      if (res) {
-        if (res.error) log('Overlay error: ' + res.error, 'err');
-        else log('Overlay built: ' + res.layerCount + ' layers', 'ok');
-      }
-    });
+  log('Building data overlay…', 'info');
+  callEngine('asciiHost.buildOverlay(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
+    const res = safeJSON(result, 'buildOverlay');
+    if (res) {
+      if (res.error) log('Overlay error: ' + res.error, 'err');
+      else log('Overlay built: ' + res.layerCount + ' layers', 'ok');
+    }
   });
 });
 
 /* ─── Preview Clusters ─── */
 $('btn-preview-clusters').addEventListener('click', () => {
-  initScripts(ok => {
-    if (!ok) return;
-    log('Analyzing clusters…', 'info');
-    evalScript('asciiHost.previewClusters(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
-      const clusters = safeJSON(result, 'previewClusters');
-      if (!clusters) return;
-      const list = $('cluster-list');
-      if (!clusters.length) { list.textContent = 'No clusters found.'; return; }
-      list.innerHTML = clusters.map((c, i) =>
-        `#${i+1}  cx:${c.cx} cy:${c.cy}  area:${c.area}  conf:${(c.conf*100).toFixed(0)}%`
-      ).join('\n');
-      log(clusters.length + ' clusters detected', 'ok');
-    });
+  log('Analyzing clusters…', 'info');
+  callEngine('asciiHost.previewClusters(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
+    const clusters = safeJSON(result, 'previewClusters');
+    if (!clusters) return;
+    const list = $('cluster-list');
+    if (!clusters.length) { list.textContent = 'No clusters found.'; return; }
+    list.innerHTML = clusters.map((c, i) =>
+      `#${i+1}  cx:${c.cx} cy:${c.cy}  area:${c.area}  conf:${(c.conf*100).toFixed(0)}%`
+    ).join('\n');
+    log(clusters.length + ' clusters detected', 'ok');
   });
 });
 
@@ -579,13 +556,20 @@ updateAnalogousPreview();
 renderPresetList();
 $('dynamic-opts').style.display = 'none';
 
-// Check AE connection then load scripts
+// Check AE connection
 const statusEl = $('ae-status');
 if (window.__adobe_cep__) {
-  statusEl.textContent = '● loading…';
-  initScripts(ok => {
-    statusEl.textContent = ok ? '● ready' : '● load error';
-    statusEl.style.color = ok ? 'var(--text2)' : '#ff6b6b';
+  statusEl.textContent = '● checking…';
+  callEngine('"ok"', result => {
+    if (result === 'ok') {
+      statusEl.textContent = '● ready';
+      statusEl.style.color = 'var(--text2)';
+      log('Engine ready.', 'ok');
+    } else {
+      statusEl.textContent = '● engine error';
+      statusEl.style.color = '#ff6b6b';
+      log('Engine error: ' + (result || 'empty response'), 'err');
+    }
   });
 } else {
   statusEl.textContent = '● not in AE';
