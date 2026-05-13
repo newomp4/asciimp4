@@ -352,11 +352,15 @@ $('analog-count').addEventListener('input', updateAnalogousPreview);
 /* ─── Safe JSON parse helper ─── */
 function safeJSON(result, label) {
   if (!result || result.trim() === '') {
-    log((label || 'Call') + ' returned empty — is a comp open in AE?', 'err');
+    log((label || 'Call') + ' returned empty. Make sure a composition is open and a layer is selected in AE.', 'err');
+    return null;
+  }
+  if (result.trim() === 'undefined' || result.trim() === 'null') {
+    log((label || 'Call') + ' returned ' + result.trim() + ' — no active comp or layer.', 'err');
     return null;
   }
   try { return JSON.parse(result); }
-  catch(e) { log((label || 'Parse') + ' error: ' + result.slice(0, 120), 'err'); return null; }
+  catch(e) { log((label || 'Parse') + ' error: ' + result.slice(0, 200), 'err'); return null; }
 }
 
 /* ─── Layer selection ─── */
@@ -364,7 +368,12 @@ function grabSelectedLayer(cb) {
   callEngine('asciiHost.getSelectedLayer()', result => {
     const res = safeJSON(result, 'getSelectedLayer');
     if (!res) { if (cb) cb(false); return; }
-    if (res.error || !res.index) {
+    if (res.error) {
+      log('AE error: ' + res.error, 'err');
+      if (cb) cb(false);
+      return;
+    }
+    if (!res.index) {
       log('No layer selected — click a layer in the AE timeline first.', 'err');
       if (cb) cb(false);
       return;

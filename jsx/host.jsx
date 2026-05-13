@@ -4,8 +4,22 @@
 var asciiHost = (function() {
 
   /* ── helpers ── */
-  function ok(obj) { return JSON.stringify(obj); }
-  function err(msg) { return JSON.stringify({ error: String(msg) }); }
+  // Manual JSON serializer — fallback when JSON global isn't available in ExtendScript
+  function toJSON(val) {
+    if (val === null || val === undefined) return 'null';
+    if (typeof val === 'boolean' || typeof val === 'number') return String(val);
+    if (typeof val === 'string') {
+      return '"' + val.replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/\n/g,'\\n').replace(/\r/g,'\\r') + '"';
+    }
+    if (typeof val.length === 'number') { // array-like
+      var a = []; for (var i=0;i<val.length;i++) a.push(toJSON(val[i]));
+      return '['+a.join(',')+']';
+    }
+    var p = []; for (var k in val) { if (val.hasOwnProperty(k)) p.push('"'+k+'":'+toJSON(val[k])); }
+    return '{'+p.join(',')+'}';
+  }
+  function ok(obj)  { try { return JSON.stringify(obj);                } catch(_) { return toJSON(obj); } }
+  function err(msg) { try { return JSON.stringify({error:String(msg)}); } catch(_) { return '{"error":'+toJSON(String(msg))+'}'; } }
 
   function getComp() {
     var comp = app.project.activeItem;
