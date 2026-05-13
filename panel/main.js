@@ -11,40 +11,28 @@ function evalScript(code, cb) {
 }
 
 /* ─── Script loader ─── */
-// Derive extension root from this HTML file's URL:
-// file:///path/to/com.asciimp4.panel/panel/index.html  →  /path/to/com.asciimp4.panel
-function getExtPath() {
-  try {
-    const parts = decodeURIComponent(new URL(window.location.href).pathname).split('/');
-    parts.pop(); // index.html
-    parts.pop(); // panel/
-    return parts.join('/');
-  } catch(e) { return ''; }
-}
-
+// ASCIIMP4_ENGINE is the entire ExtendScript bundle, pre-built into engine.js.
+// We send it directly via evalScript — no file I/O, no path issues.
 let _scriptsLoaded = false;
 
 function initScripts(cb) {
   if (_scriptsLoaded) { cb(true); return; }
-  const ext = getExtPath();
-  if (!ext) { log('Cannot resolve extension path.', 'err'); cb(false); return; }
-  const j = ext + '/jsx/';
-  const code = `
-    try {
-      $.evalFile("${j}asciiEngine.jsx");
-      $.evalFile("${j}colorEngine.jsx");
-      $.evalFile("${j}overlayBuilder.jsx");
-      $.evalFile("${j}host.jsx");
-      "ok";
-    } catch(e) { "ERR:" + e.message + (e.line ? " L" + e.line : ""); }
-  `;
-  evalScript(code, result => {
+  if (!window.ASCIIMP4_ENGINE) {
+    log('engine.js not loaded — check panel files.', 'err');
+    cb(false);
+    return;
+  }
+  // Append "ok" so we can detect success vs error vs empty
+  evalScript(window.ASCIIMP4_ENGINE + '\n"ok";', result => {
     if (result === 'ok') {
       _scriptsLoaded = true;
       log('Engine ready.', 'ok');
       cb(true);
+    } else if (!result || result.trim() === '') {
+      log('Engine returned empty — possible ExtendScript syntax error.', 'err');
+      cb(false);
     } else {
-      log('Engine load failed: ' + result, 'err');
+      log('Engine error: ' + result.slice(0, 200), 'err');
       cb(false);
     }
   });
