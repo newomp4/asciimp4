@@ -32,7 +32,7 @@ const state = {
   charSet: 'standard',
   customChars: ' .:-=+*#@',
   invertMap: false,
-  cellSize: 10,
+  cellSize: 24,
   dynamicScale: false,
   cellMin: 6,
   cellMax: 20,

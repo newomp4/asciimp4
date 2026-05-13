@@ -227,7 +227,7 @@ var asciiEngine = (function() {
       ? (cfg.customChars || ' .:-=+*#@')
       : (SETS[cfg.charSet] || SETS.standard);
 
-    var cs       = parseInt(cfg.cellSize) || 14;
+    var cs       = parseInt(cfg.cellSize) || 24;
     var thresh   = ((cfg.lumaThresh  || 20)  / 255).toFixed(5);
     var aThresh  = ((cfg.alphaThresh || 128) / 255).toFixed(5);
     var contrast = ((cfg.contrast    || 100) / 100).toFixed(5);
@@ -289,8 +289,10 @@ var asciiEngine = (function() {
 
     textProp.expression = expr;
 
-    // ── Drop outComp onto the original comp's timeline ──
-    comp.layers.add(outComp);
+    // ── Drop outComp onto the original comp's timeline, perfectly centered ──
+    var outLayer = comp.layers.add(outComp);
+    outLayer.property("Position").setValue([comp.width / 2, comp.height / 2]);
+    outLayer.property("Anchor Point").setValue([outComp.width / 2, outComp.height / 2]);
 
     return { compName: outComp.name, frames: 1, method: 'expression' };
   }
