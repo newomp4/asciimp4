@@ -167,11 +167,9 @@ var asciiEngine = (function() {
       srcComp.duration,
       srcComp.frameRate
     );
-    // Background solid
+    // Set comp background color directly (avoids addSolid compatibility issues)
     if (cfg.bgFill) {
-      var bgColor = hexToAEColor(cfg.bgColor || '#000000');
-      var bgSolid = app.project.items.addSolid(bgColor, "ASCII_BG", outComp.width, outComp.height, 1);
-      outComp.layers.add(bgSolid);
+      outComp.bgColor = hexToAEColor(cfg.bgColor || '#000000');
     }
     return outComp;
   }
