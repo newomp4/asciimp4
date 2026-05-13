@@ -5,50 +5,42 @@ let cs;
 try {
   cs = new CSInterface();
 } catch (e) {
-  cs = null; // Running outside AE (browser preview)
+  cs = null;
 }
 
 function evalScript(code, cb) {
   if (cs) {
     cs.evalScript(code, cb || function(){});
   } else {
-    log('(no AE) ' + code, 'info');
+    log('(no AE) ' + code.slice(0, 60), 'info');
     if (cb) cb('{}');
   }
 }
 
 /* ─── State ─── */
 const state = {
-  // source
   sourceLayer: '',
   useAlpha: false,
-  useSkip: true,
   frameStep: 1,
-  // charset
   charSet: 'standard',
   customChars: ' .:-=+*#@',
   invertMap: false,
-  // grid
   cellSize: 10,
   dynamicScale: false,
   cellMin: 6,
   cellMax: 20,
   scaleResp: 50,
   resDiv: 2,
-  outScale: 100,
-  // thresholds
   lumaThresh: 20,
   alphaThresh: 128,
   contrast: 100,
   gamma: 100,
-  // output
   outCompName: 'ASCII_Output',
   outFont: 'Arial',
   leading: 100,
   tracking: 0,
   bgFill: true,
   bgColor: '#000000',
-  // color
   colorMode: 'mono',
   colorPrimary: '#00e5ff',
   colorSecondary: '#7c4dff',
@@ -59,24 +51,21 @@ const state = {
   hueShift: 0,
   saturation: 100,
   brightness: 100,
-  overlayOpacity: 80,
   overlaySource: false,
   sourceBlend: 60,
   perCharTint: false,
-  // tracker
   trackerEnabled: false,
   maxClusters: 5,
   clusterSens: 40,
   clusterMinArea: 200,
   trackMode: 'bright',
-  // overlay
   showBoxes: true,
-  boxColor: '#00e5ff',
+  boxColor: '#ffffff',
   boxStroke: 1,
   boxRounded: false,
   showLines: true,
   lineStyle: 'dotted',
-  lineColor: '#7c4dff',
+  lineColor: '#ffffff',
   lineOpacity: 60,
   showLabels: true,
   labelType: 'id',
@@ -87,16 +76,15 @@ const state = {
   cornerBrackets: false,
 };
 
-/* ─── Character sets ─── */
 const CHAR_SETS = {
-  standard:  ' .\'`^",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$',
-  numbers:   ' 123456789012345678901234567890',
-  binary:    ' 01010101010101010101',
-  letters:   ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
-  symbols:   ' .,-~:;=!*#$@',
-  blocks:    ' ░▒▓█',
-  dots:      ' ·▪■',
-  hex:       ' 0123456789abcdef',
+  standard: " .'`^\",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$",
+  numbers:  ' 123456789012345678901234567890',
+  binary:   ' 01',
+  letters:  ' abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  symbols:  ' .,-~:;=!*#$@',
+  blocks:   ' ░▒▓█',
+  dots:     ' ·▪■',
+  hex:      ' 0123456789abcdef',
 };
 
 /* ─── Helpers ─── */
@@ -120,12 +108,42 @@ function setProgress(pct, label) {
 
 function bindRange(id, stateKey, displayFn) {
   const el = $(id);
+  if (!el) return;
   const valEl = $(id + '-val');
   el.addEventListener('input', () => {
     state[stateKey] = parseFloat(el.value);
     if (valEl) valEl.textContent = displayFn ? displayFn(el.value) : el.value;
   });
 }
+
+function bindToggle(id, stateKey, onChange) {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('change', () => {
+    state[stateKey] = el.checked;
+    if (onChange) onChange(el.checked);
+  });
+}
+
+/* ─── Tooltips ─── */
+const tooltip = $('tooltip');
+
+document.querySelectorAll('.tip').forEach(el => {
+  el.addEventListener('mouseenter', e => {
+    tooltip.textContent = el.dataset.tip;
+    tooltip.style.display = 'block';
+    const rect = el.getBoundingClientRect();
+    let left = rect.right + 10;
+    if (left + 230 > window.innerWidth) left = rect.left - 230;
+    let top = rect.top - 4;
+    if (top + 80 > window.innerHeight) top = window.innerHeight - 90;
+    tooltip.style.left = Math.max(4, left) + 'px';
+    tooltip.style.top = Math.max(4, top) + 'px';
+  });
+  el.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+});
 
 /* ─── Tabs ─── */
 document.querySelectorAll('.tab').forEach(tab => {
@@ -151,7 +169,6 @@ bindRange('cell-min', 'cellMin');
 bindRange('cell-max', 'cellMax');
 bindRange('scale-resp', 'scaleResp');
 bindRange('res-div', 'resDiv');
-bindRange('out-scale', 'outScale', v => v + '%');
 bindRange('luma-thresh', 'lumaThresh');
 bindRange('alpha-thresh', 'alphaThresh');
 bindRange('contrast', 'contrast');
@@ -164,7 +181,6 @@ bindRange('cycle-speed', 'cycleSpeed');
 bindRange('hue-shift', 'hueShift', v => v + '°');
 bindRange('saturation', 'saturation', v => v + '%');
 bindRange('brightness', 'brightness', v => v + '%');
-bindRange('overlay-opacity', 'overlayOpacity', v => v + '%');
 bindRange('source-blend', 'sourceBlend', v => v + '%');
 bindRange('max-clusters', 'maxClusters');
 bindRange('cluster-sens', 'clusterSens');
@@ -174,16 +190,7 @@ bindRange('line-opacity', 'lineOpacity', v => v + '%');
 bindRange('label-size', 'labelSize');
 
 /* ─── Toggle bindings ─── */
-function bindToggle(id, stateKey, onChange) {
-  const el = $(id);
-  el.addEventListener('change', () => {
-    state[stateKey] = el.checked;
-    if (onChange) onChange(el.checked);
-  });
-}
-
 bindToggle('use-alpha', 'useAlpha');
-bindToggle('use-skip', 'useSkip');
 bindToggle('invert-map', 'invertMap');
 bindToggle('dynamic-scale', 'dynamicScale', v => {
   $('dynamic-opts').style.display = v ? 'block' : 'none';
@@ -204,15 +211,16 @@ bindToggle('corner-brackets', 'cornerBrackets');
 
 /* ─── Color inputs ─── */
 ['color-primary', 'color-secondary', 'bg-color', 'box-color', 'line-color', 'label-color'].forEach(id => {
+  const el = $(id);
+  if (!el) return;
   const key = id.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-  $(id).addEventListener('input', e => {
+  el.addEventListener('input', e => {
     state[key] = e.target.value;
     if (id === 'color-primary') updateAnalogousPreview();
   });
 });
 
 /* ─── Select bindings ─── */
-$('source-layer').addEventListener('change', e => { state.sourceLayer = e.target.value; });
 $('out-font').addEventListener('change', e => { state.outFont = e.target.value; });
 $('label-font').addEventListener('change', e => { state.labelFont = e.target.value; });
 $('out-comp-name').addEventListener('input', e => { state.outCompName = e.target.value; });
@@ -234,20 +242,19 @@ document.querySelectorAll('#charset-chips .chip').forEach(chip => {
 
 function updateCharsetPreview() {
   const chars = state.charSet === 'custom' ? state.customChars : (CHAR_SETS[state.charSet] || '');
-  const preview = chars.length > 20 ? chars.substring(0, 20) + '…' : chars;
-  $('charset-preview').textContent = preview;
+  $('charset-preview').textContent = chars.length > 22 ? chars.substring(0, 22) + '…' : chars;
 }
 
 /* ─── Color mode chips ─── */
 const COLOR_MODE_HINTS = {
-  mono: 'Single color applied to all characters.',
-  source: 'Samples original video color per ASCII cell.',
+  mono:      'Single color applied to all characters.',
+  source:    'Samples original video color per ASCII cell.',
   analogous: 'Generates harmonious color palette from base hue.',
-  hueshift: 'Animates hue rotation over time.',
-  gradient: 'Applies vertical gradient from primary to secondary.',
-  neon: 'High-saturation neon palette with bloom-ready colors.',
-  thermal: 'Cool-to-hot thermal imaging palette.',
-  glitch: 'Randomized color disruption per character.',
+  hueshift:  'Animates hue rotation over time.',
+  gradient:  'Vertical gradient from primary to secondary color.',
+  neon:      'High-saturation cycling neon palette.',
+  thermal:   'Cool-to-hot thermal imaging palette.',
+  glitch:    'Randomized color per character each frame.',
 };
 
 document.querySelectorAll('#color-mode-chips .chip').forEach(chip => {
@@ -259,7 +266,7 @@ document.querySelectorAll('#color-mode-chips .chip').forEach(chip => {
   });
 });
 
-/* ─── Track mode chips ─── */
+/* ─── Other chip groups ─── */
 document.querySelectorAll('#track-mode-chips .chip').forEach(chip => {
   chip.addEventListener('click', () => {
     document.querySelectorAll('#track-mode-chips .chip').forEach(c => c.classList.remove('active'));
@@ -268,7 +275,6 @@ document.querySelectorAll('#track-mode-chips .chip').forEach(chip => {
   });
 });
 
-/* ─── Line style chips ─── */
 document.querySelectorAll('#line-style-chips .chip').forEach(chip => {
   chip.addEventListener('click', () => {
     document.querySelectorAll('#line-style-chips .chip').forEach(c => c.classList.remove('active'));
@@ -277,7 +283,6 @@ document.querySelectorAll('#line-style-chips .chip').forEach(chip => {
   });
 });
 
-/* ─── Label type chips ─── */
 document.querySelectorAll('#label-type-chips .chip').forEach(chip => {
   chip.addEventListener('click', () => {
     document.querySelectorAll('#label-type-chips .chip').forEach(c => c.classList.remove('active'));
@@ -293,16 +298,16 @@ function hexToHSL(hex) {
   let b = parseInt(hex.slice(5,7),16)/255;
   const max = Math.max(r,g,b), min = Math.min(r,g,b);
   let h, s, l = (max+min)/2;
-  if (max===min) { h=s=0; }
+  if (max === min) { h = s = 0; }
   else {
-    const d = max-min;
-    s = l>0.5 ? d/(2-max-min) : d/(max+min);
+    const d = max - min;
+    s = l > 0.5 ? d/(2-max-min) : d/(max+min);
     switch(max){
       case r: h=(g-b)/d+(g<b?6:0); break;
       case g: h=(b-r)/d+2; break;
       case b: h=(r-g)/d+4; break;
     }
-    h/=6;
+    h /= 6;
   }
   return [Math.round(h*360), Math.round(s*100), Math.round(l*100)];
 }
@@ -310,10 +315,10 @@ function hexToHSL(hex) {
 function hslToHex(h,s,l) {
   h/=360; s/=100; l/=100;
   let r,g,b;
-  if(s===0){r=g=b=l;}
-  else{
+  if (s === 0) { r=g=b=l; }
+  else {
+    const q = l<0.5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
     const hue2rgb=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
-    const q=l<0.5?l*(1+s):l+s-l*s, p=2*l-q;
     r=hue2rgb(p,q,h+1/3); g=hue2rgb(p,q,h); b=hue2rgb(p,q,h-1/3);
   }
   return '#'+[r,g,b].map(x=>Math.round(x*255).toString(16).padStart(2,'0')).join('');
@@ -323,79 +328,75 @@ function updateAnalogousPreview() {
   const [h,s,l] = hexToHSL(state.colorPrimary);
   const count = state.analogCount;
   const spread = state.hueSpread;
-  const colors = [];
-  for(let i=0;i<count;i++) {
-    const offset = (i - Math.floor(count/2)) * (spread / Math.max(count-1,1));
-    colors.push(hslToHex((h + offset + 360) % 360, s, l));
-  }
   const container = $('analogous-preview');
   container.innerHTML = '';
-  colors.forEach(c => {
+  for (let i = 0; i < count; i++) {
+    const offset = (i - Math.floor(count/2)) * (spread / Math.max(count-1, 1));
     const sw = document.createElement('div');
-    sw.className = 'color-swatch';
-    sw.style.background = c;
+    sw.className = 'a-swatch';
+    sw.style.background = hslToHex((h + offset + 360) % 360, s, l);
     container.appendChild(sw);
-  });
-  return colors;
+  }
 }
 
-$('btn-gen-analogous').addEventListener('click', updateAnalogousPreview);
 $('hue-spread').addEventListener('input', updateAnalogousPreview);
 $('analog-count').addEventListener('input', updateAnalogousPreview);
 
-/* ─── Layer refresh ─── */
-$('btn-refresh-layers').addEventListener('click', refreshLayers);
-
-function refreshLayers() {
-  evalScript('asciiHost.getLayers()', result => {
+/* ─── Layer selection ─── */
+function grabSelectedLayer(cb) {
+  evalScript('asciiHost.getSelectedLayer()', result => {
     try {
-      const layers = JSON.parse(result);
-      const sel = $('source-layer');
-      sel.innerHTML = '<option value="">— select layer —</option>';
-      layers.forEach(l => {
-        const opt = document.createElement('option');
-        opt.value = l.index;
-        opt.textContent = l.name;
-        sel.appendChild(opt);
-      });
-      log('Loaded ' + layers.length + ' layers', 'ok');
+      const res = JSON.parse(result);
+      if (res.error || !res.index) {
+        log('No layer selected in AE — click a layer in the timeline first.', 'err');
+        if (cb) cb(false);
+        return;
+      }
+      state.sourceLayer = res.index;
+      $('selected-layer-name').textContent = res.name;
+      $('selected-layer-name').style.fontStyle = 'normal';
+      log('Using layer: ' + res.name, 'ok');
+      if (cb) cb(true);
     } catch(e) {
-      log('Layer load error: ' + e.message, 'err');
+      log('Layer error: ' + e.message, 'err');
+      if (cb) cb(false);
     }
   });
 }
 
+$('btn-use-selected').addEventListener('click', () => grabSelectedLayer());
+
 /* ─── Main RENDER ─── */
 $('run-btn').addEventListener('click', () => {
-  if (!state.sourceLayer) {
-    log('Select a source layer first.', 'err');
-    return;
-  }
-  setProgress(0, 'Starting…');
-  log('Starting ASCII render…', 'info');
-  const cfg = JSON.stringify(state);
-  evalScript('asciiHost.renderASCII(' + JSON.stringify(cfg) + ')', result => {
-    try {
-      const res = JSON.parse(result);
-      if (res.error) {
-        log('Error: ' + res.error, 'err');
-        setProgress(100);
-      } else {
-        log('Done! Comp: ' + res.compName + ' (' + res.frames + ' frames)', 'ok');
-        setProgress(100);
-      }
-    } catch(e) {
-      log('Parse error: ' + result, 'err');
-      setProgress(100);
+  const doRender = () => {
+    if (!state.sourceLayer) {
+      log('No layer selected — click a layer in the AE timeline first.', 'err');
+      return;
     }
-  });
+    setProgress(1, 'Starting…');
+    log('Starting ASCII render…', 'info');
+    evalScript('asciiHost.renderASCII(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
+      try {
+        const res = JSON.parse(result);
+        if (res.error) { log('Error: ' + res.error, 'err'); }
+        else { log('Done! Comp: ' + res.compName + ' (' + res.frames + ' frames)', 'ok'); }
+      } catch(e) { log('Parse error: ' + result, 'err'); }
+      setProgress(100);
+    });
+  };
+
+  // Auto-grab selected layer on render if not already set
+  if (!state.sourceLayer) {
+    grabSelectedLayer(ok => { if (ok) doRender(); });
+  } else {
+    doRender();
+  }
 });
 
 /* ─── Build Overlay ─── */
 $('btn-build-overlay').addEventListener('click', () => {
   log('Building data overlay layers…', 'info');
-  const cfg = JSON.stringify(state);
-  evalScript('asciiHost.buildOverlay(' + JSON.stringify(cfg) + ')', result => {
+  evalScript('asciiHost.buildOverlay(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
     try {
       const res = JSON.parse(result);
       if (res.error) { log('Overlay error: ' + res.error, 'err'); }
@@ -407,11 +408,11 @@ $('btn-build-overlay').addEventListener('click', () => {
 /* ─── Preview Clusters ─── */
 $('btn-preview-clusters').addEventListener('click', () => {
   log('Analyzing clusters on current frame…', 'info');
-  evalScript('asciiHost.previewClusters(' + JSON.stringify(state) + ')', result => {
+  evalScript('asciiHost.previewClusters(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
     try {
       const clusters = JSON.parse(result);
       const list = $('cluster-list');
-      if (!clusters.length) { list.textContent = 'No clusters found.'; return; }
+      if (!clusters || !clusters.length) { list.textContent = 'No clusters found.'; return; }
       list.innerHTML = clusters.map((c, i) =>
         `#${i+1}  cx:${c.cx} cy:${c.cy}  area:${c.area}  conf:${(c.conf*100).toFixed(0)}%`
       ).join('\n');
@@ -420,16 +421,14 @@ $('btn-preview-clusters').addEventListener('click', () => {
   });
 });
 
-/* ─── Init ─── */
-
 /* ─── Presets ─── */
 const DEFAULT_PRESETS = [
-  { name: 'Binary Glitch', tag: 'built-in', state: { charSet:'binary', colorMode:'glitch', dynamicScale:true, cellMin:6, cellMax:18 }},
-  { name: 'Warm Analog',   tag: 'built-in', state: { charSet:'standard', colorMode:'analogous', colorPrimary:'#ff9100', hueSpread:40 }},
-  { name: 'Cold Scan',     tag: 'built-in', state: { charSet:'standard', colorMode:'mono', colorPrimary:'#00e5ff', scanLines:true }},
-  { name: 'Matrix',        tag: 'built-in', state: { charSet:'letters', colorMode:'mono', colorPrimary:'#00e676', bgColor:'#000000' }},
-  { name: 'Thermal Vision',tag: 'built-in', state: { charSet:'blocks', colorMode:'thermal', dynamicScale:true }},
-  { name: 'Hex Data',      tag: 'built-in', state: { charSet:'hex', colorMode:'hueshift', showBoxes:true, showLabels:true }},
+  { name: 'Binary Glitch',  tag: 'built-in', state: { charSet:'binary',   colorMode:'glitch',    dynamicScale:true, cellMin:6, cellMax:18 }},
+  { name: 'Warm Analog',    tag: 'built-in', state: { charSet:'standard', colorMode:'analogous', colorPrimary:'#ff9100', hueSpread:40 }},
+  { name: 'Cold Scan',      tag: 'built-in', state: { charSet:'standard', colorMode:'mono',      colorPrimary:'#00e5ff', scanLines:true }},
+  { name: 'Matrix',         tag: 'built-in', state: { charSet:'letters',  colorMode:'mono',      colorPrimary:'#00e676', bgColor:'#000000' }},
+  { name: 'Thermal Vision', tag: 'built-in', state: { charSet:'blocks',   colorMode:'thermal',   dynamicScale:true }},
+  { name: 'Hex Data',       tag: 'built-in', state: { charSet:'hex',      colorMode:'hueshift',  showBoxes:true, showLabels:true }},
 ];
 
 let userPresets = [];
@@ -447,13 +446,10 @@ function renderPresetList() {
     const item = document.createElement('div');
     item.className = 'preset-item';
     item.innerHTML = `
-      <div>
-        <span class="preset-name">${p.name}</span>
-        <span class="preset-tag">${p.tag || 'user'}</span>
-      </div>
+      <div><span class="preset-name">${p.name}</span> <span class="preset-tag">${p.tag || 'user'}</span></div>
       <div class="preset-actions">
-        <button class="btn-icon btn-sm" data-load="${i}" title="Load">&#8594;</button>
-        ${i >= DEFAULT_PRESETS.length ? `<button class="btn-danger btn-sm" data-del="${i - DEFAULT_PRESETS.length}" title="Delete">&#10005;</button>` : ''}
+        <button class="btn-ghost" style="padding:2px 8px;font-size:9px" data-load="${i}">Load</button>
+        ${i >= DEFAULT_PRESETS.length ? `<button class="btn-ghost" style="padding:2px 7px;font-size:9px;color:#ff6b6b" data-del="${i - DEFAULT_PRESETS.length}">✕</button>` : ''}
       </div>`;
     list.appendChild(item);
   });
@@ -469,8 +465,7 @@ function renderPresetList() {
 
   list.querySelectorAll('[data-del]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.del);
-      userPresets.splice(idx, 1);
+      userPresets.splice(parseInt(btn.dataset.del), 1);
       savePresetsToStorage();
       renderPresetList();
     });
@@ -488,19 +483,17 @@ $('btn-save-preset').addEventListener('click', () => {
 });
 
 $('btn-export-presets').addEventListener('click', () => {
-  const data = JSON.stringify({ presets: userPresets }, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
+  const blob = new Blob([JSON.stringify({ presets: userPresets }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
-  a.href = url; a.download = 'asciimp4-presets.json'; a.click();
-  URL.revokeObjectURL(url);
+  a.href = URL.createObjectURL(blob);
+  a.download = 'asciimp4-presets.json';
+  a.click();
 });
 
 $('btn-import-presets').addEventListener('click', () => {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.json';
   input.onchange = e => {
-    const file = e.target.files[0];
     const reader = new FileReader();
     reader.onload = ev => {
       try {
@@ -513,43 +506,36 @@ $('btn-import-presets').addEventListener('click', () => {
         }
       } catch(err) { log('Import error: ' + err.message, 'err'); }
     };
-    reader.readAsText(file);
+    reader.readAsText(e.target.files[0]);
   };
   input.click();
 });
 
 /* ─── Apply state → UI ─── */
 function applyStateToUI() {
-  // ranges
   const rangeMap = {
-    'frame-step': 'frameStep', 'cell-size': 'cellSize', 'cell-min': 'cellMin',
-    'cell-max': 'cellMax', 'scale-resp': 'scaleResp', 'res-div': 'resDiv',
-    'out-scale': 'outScale', 'luma-thresh': 'lumaThresh', 'alpha-thresh': 'alphaThresh',
-    'contrast': 'contrast', 'gamma': 'gamma', 'leading': 'leading', 'tracking': 'tracking',
-    'hue-spread': 'hueSpread', 'analog-count': 'analogCount', 'cycle-speed': 'cycleSpeed',
-    'hue-shift': 'hueShift', 'saturation': 'saturation', 'brightness': 'brightness',
-    'overlay-opacity': 'overlayOpacity', 'source-blend': 'sourceBlend',
-    'max-clusters': 'maxClusters', 'cluster-sens': 'clusterSens',
-    'cluster-min-area': 'clusterMinArea', 'box-stroke': 'boxStroke',
-    'line-opacity': 'lineOpacity', 'label-size': 'labelSize',
+    'frame-step':'frameStep', 'cell-size':'cellSize', 'cell-min':'cellMin',
+    'cell-max':'cellMax', 'scale-resp':'scaleResp', 'res-div':'resDiv',
+    'luma-thresh':'lumaThresh', 'alpha-thresh':'alphaThresh', 'contrast':'contrast',
+    'gamma':'gamma', 'leading':'leading', 'tracking':'tracking',
+    'hue-spread':'hueSpread', 'analog-count':'analogCount', 'cycle-speed':'cycleSpeed',
+    'hue-shift':'hueShift', 'saturation':'saturation', 'brightness':'brightness',
+    'source-blend':'sourceBlend', 'max-clusters':'maxClusters',
+    'cluster-sens':'clusterSens', 'cluster-min-area':'clusterMinArea',
+    'box-stroke':'boxStroke', 'line-opacity':'lineOpacity', 'label-size':'labelSize',
   };
   Object.entries(rangeMap).forEach(([id, key]) => {
     const el = $(id);
-    if (el && state[key] !== undefined) {
-      el.value = state[key];
-      el.dispatchEvent(new Event('input'));
-    }
+    if (el && state[key] !== undefined) { el.value = state[key]; el.dispatchEvent(new Event('input')); }
   });
-  // toggles
-  ['use-alpha','use-skip','invert-map','dynamic-scale','bg-fill',
-   'analog-cycle','overlay-source','per-char-tint','tracker-enabled',
-   'show-boxes','box-rounded','show-lines','show-labels','scan-lines','corner-brackets'
+  ['use-alpha','invert-map','dynamic-scale','bg-fill','analog-cycle',
+   'overlay-source','per-char-tint','tracker-enabled','show-boxes',
+   'box-rounded','show-lines','show-labels','scan-lines','corner-brackets'
   ].forEach(id => {
     const el = $(id);
     const key = id.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
     if (el && state[key] !== undefined) { el.checked = state[key]; el.dispatchEvent(new Event('change')); }
   });
-  // charset chips
   document.querySelectorAll('#charset-chips .chip').forEach(c => {
     c.classList.toggle('active', c.dataset.set === state.charSet);
   });
@@ -562,5 +548,3 @@ updateCharsetPreview();
 updateAnalogousPreview();
 renderPresetList();
 $('dynamic-opts').style.display = 'none';
-
-setTimeout(() => { if (cs) refreshLayers(); }, 500);

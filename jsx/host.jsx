@@ -24,6 +24,19 @@ var asciiHost = (function() {
   }
 
   /* ─────────────────────────────────────────
+     getSelectedLayer()
+     Returns {index, name} of the currently selected layer
+  ───────────────────────────────────────── */
+  function getSelectedLayer() {
+    try {
+      var comp = getComp();
+      var sel = comp.selectedLayers;
+      if (!sel || sel.length === 0) return ok({ index: null, name: null });
+      return ok({ index: sel[0].index, name: sel[0].name });
+    } catch(e) { return err(e.message); }
+  }
+
+  /* ─────────────────────────────────────────
      getLayers()
      Returns [{index, name, type}] for the active comp
   ───────────────────────────────────────── */
@@ -109,6 +122,7 @@ var asciiHost = (function() {
   }
 
   return {
+    getSelectedLayer: getSelectedLayer,
     getLayers: getLayers,
     renderASCII: renderASCII,
     buildOverlay: buildOverlay,

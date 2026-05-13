@@ -372,6 +372,44 @@ button {
 /* ── Hint text ── */
 .hint { color: var(--text3); font-size: 9px; margin-top: 5px; line-height: 1.6; }
 
+/* ── Tooltip trigger ── */
+.tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--text3);
+  color: var(--text3);
+  font-size: 8px;
+  cursor: help;
+  flex-shrink: 0;
+  margin-left: 3px;
+  vertical-align: middle;
+  user-select: none;
+  font-style: normal;
+}
+.tip:hover { border-color: var(--text2); color: var(--text2); }
+
+/* ── Tooltip box (positioned via JS) ── */
+#tooltip {
+  position: fixed;
+  background: var(--bg4);
+  border: 1px solid #3d3d3d;
+  color: var(--text);
+  font-size: 10px;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  padding: 7px 10px;
+  border-radius: 3px;
+  max-width: 220px;
+  line-height: 1.5;
+  z-index: 9999;
+  pointer-events: none;
+  display: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
 /* ── Charset preview ── */
 #charset-preview {
   font-family: 'Courier New', monospace;
