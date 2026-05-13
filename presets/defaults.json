@@ -1,0 +1,105 @@
+{
+  "presets": [
+    {
+      "name": "Binary Glitch",
+      "tag": "built-in",
+      "state": {
+        "charSet": "binary",
+        "colorMode": "glitch",
+        "dynamicScale": true,
+        "cellMin": 6,
+        "cellMax": 18,
+        "bgColor": "#000000",
+        "hueShift": 0,
+        "saturation": 110
+      }
+    },
+    {
+      "name": "Warm Analog",
+      "tag": "built-in",
+      "state": {
+        "charSet": "standard",
+        "colorMode": "analogous",
+        "colorPrimary": "#ff9100",
+        "hueSpread": 40,
+        "analogCount": 5,
+        "saturation": 90,
+        "bgColor": "#0a0500"
+      }
+    },
+    {
+      "name": "Cold Scan",
+      "tag": "built-in",
+      "state": {
+        "charSet": "standard",
+        "colorMode": "mono",
+        "colorPrimary": "#00e5ff",
+        "scanLines": true,
+        "bgColor": "#000810"
+      }
+    },
+    {
+      "name": "Matrix",
+      "tag": "built-in",
+      "state": {
+        "charSet": "letters",
+        "colorMode": "mono",
+        "colorPrimary": "#00e676",
+        "bgColor": "#000000",
+        "saturation": 80,
+        "brightness": 90
+      }
+    },
+    {
+      "name": "Thermal Vision",
+      "tag": "built-in",
+      "state": {
+        "charSet": "blocks",
+        "colorMode": "thermal",
+        "dynamicScale": true,
+        "cellMin": 5,
+        "cellMax": 16,
+        "bgColor": "#000000"
+      }
+    },
+    {
+      "name": "Hex Data",
+      "tag": "built-in",
+      "state": {
+        "charSet": "hex",
+        "colorMode": "hueshift",
+        "showBoxes": true,
+        "showLabels": true,
+        "colorPrimary": "#7c4dff",
+        "cycleSpeed": 45,
+        "analogCycle": true
+      }
+    },
+    {
+      "name": "Neon Outline",
+      "tag": "built-in",
+      "state": {
+        "charSet": "symbols",
+        "colorMode": "neon",
+        "useAlpha": true,
+        "dynamicScale": true,
+        "cellMin": 8,
+        "cellMax": 24,
+        "bgColor": "#050005"
+      }
+    },
+    {
+      "name": "Retro Terminal",
+      "tag": "built-in",
+      "state": {
+        "charSet": "standard",
+        "colorMode": "mono",
+        "colorPrimary": "#33ff33",
+        "bgColor": "#001100",
+        "cellSize": 8,
+        "tracking": -2,
+        "contrast": 130
+      }
+    }
+  ]
+}

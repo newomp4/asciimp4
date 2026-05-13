@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>ASCIImp4</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<div id="header">
+  <div id="logo">ASCIIMP4</div>
+  <div id="header-actions">
+    <button class="btn-ghost" id="btn-refresh-layers" style="padding:3px 8px;font-size:9px">Refresh layers</button>
+  </div>
+</div>
+
+<div id="tabs">
+  <div class="tab active" data-pane="render">Render</div>
+  <div class="tab" data-pane="color">Color</div>
+  <div class="tab" data-pane="tracker">Tracker</div>
+  <div class="tab" data-pane="presets">Presets</div>
+</div>
+
+<div id="content">
+
+  <!-- ═══════════ RENDER ═══════════ -->
+  <div class="tab-pane active" id="pane-render">
+
+    <!-- Source -->
+    <div class="section">
+      <div class="section-header" data-sec="source">
+        <div class="section-title">Source</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div class="row">
+          <label>Layer</label>
+          <select id="source-layer"><option value="">— select —</option></select>
+        </div>
+        <div class="row">
+          <label>Use alpha mask</label>
+          <label class="toggle"><input type="checkbox" id="use-alpha"/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="range-row">
+          <label>Frame step</label>
+          <input type="range" id="frame-step" min="1" max="10" value="1"/>
+          <span class="val" id="frame-step-val">1</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Characters -->
+    <div class="section">
+      <div class="section-header" data-sec="charset">
+        <div class="section-title">Characters</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div class="chips" id="charset-chips">
+          <div class="chip active" data-set="standard">Standard</div>
+          <div class="chip" data-set="numbers">0–9</div>
+          <div class="chip" data-set="binary">Binary</div>
+          <div class="chip" data-set="letters">A–Z</div>
+          <div class="chip" data-set="symbols">Symbols</div>
+          <div class="chip" data-set="blocks">Blocks</div>
+          <div class="chip" data-set="hex">Hex</div>
+          <div class="chip" data-set="custom">Custom</div>
+        </div>
+        <div id="custom-row" style="display:none" class="row" style="margin-top:8px">
+          <label>Chars (light→dark)</label>
+          <input type="text" id="custom-charset" value=" .:-=+*#@" style="width:140px;font-family:monospace;letter-spacing:1px"/>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <label>Preview</label>
+          <span id="charset-preview"> .:-=+*#@</span>
+        </div>
+        <div class="row">
+          <label>Invert</label>
+          <label class="toggle"><input type="checkbox" id="invert-map"/><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="section">
+      <div class="section-header" data-sec="grid">
+        <div class="section-title">Grid &amp; Scale</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div class="range-row">
+          <label>Cell size</label>
+          <input type="range" id="cell-size" min="4" max="40" value="10"/>
+          <span class="val" id="cell-size-val">10</span>
+        </div>
+        <div class="range-row">
+          <label>Resolution divisor</label>
+          <input type="range" id="res-div" min="1" max="8" value="2"/>
+          <span class="val" id="res-div-val">2</span>
+        </div>
+        <div class="row">
+          <label>Dynamic scale</label>
+          <label class="toggle"><input type="checkbox" id="dynamic-scale"/><span class="toggle-slider"></span></label>
+        </div>
+        <div id="dynamic-opts" style="display:none">
+          <div class="range-row">
+            <label>Min cell</label>
+            <input type="range" id="cell-min" min="2" max="30" value="6"/>
+            <span class="val" id="cell-min-val">6</span>
+          </div>
+          <div class="range-row">
+            <label>Max cell</label>
+            <input type="range" id="cell-max" min="8" max="60" value="20"/>
+            <span class="val" id="cell-max-val">20</span>
+          </div>
+          <div class="range-row">
+            <label>Responsiveness</label>
+            <input type="range" id="scale-resp" min="1" max="100" value="50"/>
+            <span class="val" id="scale-resp-val">50</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thresholds -->
+    <div class="section">
+      <div class="section-header" data-sec="thresh">
+        <div class="section-title">Thresholds</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div class="range-row">
+          <label>Luma threshold</label>
+          <input type="range" id="luma-thresh" min="0" max="255" value="20"/>
+          <span class="val" id="luma-thresh-val">20</span>
+        </div>
+        <div class="range-row">
+          <label>Alpha threshold</label>
+          <input type="range" id="alpha-thresh" min="0" max="255" value="128"/>
+          <span class="val" id="alpha-thresh-val">128</span>
+        </div>
+        <div class="range-row">
+          <label>Contrast</label>
+          <input type="range" id="contrast" min="0" max="200" value="100"/>
+          <span class="val" id="contrast-val">100</span>
+        </div>
+        <div class="range-row">
+          <label>Gamma</label>
+          <input type="range" id="gamma" min="10" max="300" value="100"/>
+          <span class="val" id="gamma-val">1.0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="section">
+      <div class="section-header" data-sec="output">
+        <div class="section-title">Output</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div class="row">
+          <label>Comp name</label>
+          <input type="text" id="out-comp-name" value="ASCII_Output" style="width:140px"/>
+        </div>
+        <div class="row">
+          <label>Font</label>
+          <select id="out-font">
+            <option value="Arial">Arial</option>
+            <option value="Helvetica Neue">Helvetica Neue</option>
+            <option value="Courier New">Courier New</option>
+            <option value="Menlo">Menlo</option>
+            <option value="Monaco">Monaco</option>
+          </select>
+        </div>
+        <div class="range-row">
+          <label>Tracking</label>
+          <input type="range" id="tracking" min="-50" max="100" value="0"/>
+          <span class="val" id="tracking-val">0</span>
+        </div>
+        <div class="range-row">
+          <label>Leading</label>
+          <input type="range" id="leading" min="60" max="150" value="100"/>
+          <span class="val" id="leading-val">100%</span>
+        </div>
+        <div class="row">
+          <label>Background</label>
+          <label class="toggle"><input type="checkbox" id="bg-fill" checked/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="row" id="bg-color-row">
+          <label>Background color</label>
+          <input type="color" id="bg-color" value="#000000"/>
+        </div>
+      </div>
+    </div>
+
+    <div id="progress-wrap">
+      <div id="progress-track"><div id="progress-fill"></div></div>
+      <div id="progress-label">0%</div>
+    </div>
+
+    <button id="run-btn">▶ Render ASCII</button>
+
+    <div id="log"><span class="log-info">Ready — select a layer and hit Render ASCII.</span></div>
+
+  </div>
+
+  <!-- ═══════════ COLOR ═══════════ -->
+  <div class="tab-pane" id="pane-color">
+
+    <div class="section">
+      <div class="section-header" data-sec="colormode">
+        <div class="section-title">Mode</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div class="chips" id="color-mode-chips">
+          <div class="chip active" data-mode="mono">Mono</div>
+          <div class="chip" data-mode="source">Source</div>
+          <div class="chip" data-mode="analogous">Analogous</div>
+          <div class="chip" data-mode="hueshift">Hue shift</div>
+          <div class="chip" data-mode="gradient">Gradient</div>
+          <div class="chip" data-mode="neon">Neon</div>
+          <div class="chip" data-mode="thermal">Thermal</div>
+          <div class="chip" data-mode="glitch">Glitch</div>
+        </div>
+        <p class="hint" id="color-mode-hint">Single color applied to all characters.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" data-sec="basecolor">
+        <div class="section-title">Base Color</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div class="row">
+          <label>Primary</label>
+          <input type="color" id="color-primary" value="#00e5ff"/>
+        </div>
+        <div class="row">
+          <label>Secondary</label>
+          <input type="color" id="color-secondary" value="#7c4dff"/>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" data-sec="analogous">
+        <div class="section-title">Analogous</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div class="range-row">
+          <label>Hue spread</label>
+          <input type="range" id="hue-spread" min="5" max="120" value="30"/>
+          <span class="val" id="hue-spread-val">30°</span>
+        </div>
+        <div class="range-row">
+          <label>Count</label>
+          <input type="range" id="analog-count" min="2" max="8" value="4"/>
+          <span class="val" id="analog-count-val">4</span>
+        </div>
+        <div id="analogous-preview"></div>
+        <div class="row" style="margin-top:8px">
+          <label>Cycle over time</label>
+          <label class="toggle"><input type="checkbox" id="analog-cycle"/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="range-row">
+          <label>Cycle speed °/s</label>
+          <input type="range" id="cycle-speed" min="1" max="360" value="30"/>
+          <span class="val" id="cycle-speed-val">30</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" data-sec="postfx">
+        <div class="section-title">Post Processing</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div class="range-row">
+          <label>Hue shift</label>
+          <input type="range" id="hue-shift" min="-180" max="180" value="0"/>
+          <span class="val" id="hue-shift-val">0°</span>
+        </div>
+        <div class="range-row">
+          <label>Saturation</label>
+          <input type="range" id="saturation" min="0" max="200" value="100"/>
+          <span class="val" id="saturation-val">100%</span>
+        </div>
+        <div class="range-row">
+          <label>Brightness</label>
+          <input type="range" id="brightness" min="0" max="200" value="100"/>
+          <span class="val" id="brightness-val">100%</span>
+        </div>
+        <hr/>
+        <div class="row">
+          <label>Overlay source color</label>
+          <label class="toggle"><input type="checkbox" id="overlay-source"/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="range-row">
+          <label>Source blend</label>
+          <input type="range" id="source-blend" min="0" max="100" value="60"/>
+          <span class="val" id="source-blend-val">60%</span>
+        </div>
+        <div class="row">
+          <label>Per-char brightness tint</label>
+          <label class="toggle"><input type="checkbox" id="per-char-tint"/><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════ TRACKER ═══════════ -->
+  <div class="tab-pane" id="pane-tracker">
+
+    <div class="section">
+      <div class="section-header" data-sec="cluster">
+        <div class="section-title">Cluster Tracker</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div class="row">
+          <label>Enable</label>
+          <label class="toggle"><input type="checkbox" id="tracker-enabled"/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="range-row">
+          <label>Max clusters</label>
+          <input type="range" id="max-clusters" min="1" max="20" value="5"/>
+          <span class="val" id="max-clusters-val">5</span>
+        </div>
+        <div class="range-row">
+          <label>Sensitivity</label>
+          <input type="range" id="cluster-sens" min="1" max="100" value="40"/>
+          <span class="val" id="cluster-sens-val">40</span>
+        </div>
+        <div class="range-row">
+          <label>Min area px²</label>
+          <input type="range" id="cluster-min-area" min="10" max="5000" value="200"/>
+          <span class="val" id="cluster-min-area-val">200</span>
+        </div>
+        <div class="chips" id="track-mode-chips" style="margin-top:8px">
+          <div class="chip active" data-tmode="bright">Bright</div>
+          <div class="chip" data-tmode="dark">Dark</div>
+          <div class="chip" data-tmode="edge">Edges</div>
+          <div class="chip" data-tmode="motion">Motion</div>
+        </div>
+        <div id="cluster-list">No clusters detected.</div>
+        <div class="btn-row">
+          <button class="btn-ghost" id="btn-preview-clusters">Preview clusters</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" data-sec="overlay">
+        <div class="section-title">Data Overlay</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div class="row">
+          <label>Bounding boxes</label>
+          <label class="toggle"><input type="checkbox" id="show-boxes" checked/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="row">
+          <label>Box color</label>
+          <input type="color" id="box-color" value="#ffffff"/>
+        </div>
+        <div class="range-row">
+          <label>Stroke width</label>
+          <input type="range" id="box-stroke" min="1" max="6" value="1"/>
+          <span class="val" id="box-stroke-val">1</span>
+        </div>
+        <div class="row">
+          <label>Rounded corners</label>
+          <label class="toggle"><input type="checkbox" id="box-rounded"/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="row">
+          <label>Corner brackets (HUD)</label>
+          <label class="toggle"><input type="checkbox" id="corner-brackets"/><span class="toggle-slider"></span></label>
+        </div>
+        <hr/>
+        <div class="row">
+          <label>Connector lines</label>
+          <label class="toggle"><input type="checkbox" id="show-lines" checked/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="chips" id="line-style-chips">
+          <div class="chip active" data-lstyle="dotted">Dotted</div>
+          <div class="chip" data-lstyle="dashed">Dashed</div>
+          <div class="chip" data-lstyle="solid">Solid</div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <label>Line color</label>
+          <input type="color" id="line-color" value="#ffffff"/>
+        </div>
+        <div class="range-row">
+          <label>Line opacity</label>
+          <input type="range" id="line-opacity" min="10" max="100" value="60"/>
+          <span class="val" id="line-opacity-val">60%</span>
+        </div>
+        <hr/>
+        <div class="row">
+          <label>Labels</label>
+          <label class="toggle"><input type="checkbox" id="show-labels" checked/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="chips" id="label-type-chips">
+          <div class="chip active" data-ltype="id">ID</div>
+          <div class="chip" data-ltype="coords">Coords</div>
+          <div class="chip" data-ltype="area">Area</div>
+          <div class="chip" data-ltype="conf">Confidence</div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <label>Label font</label>
+          <select id="label-font">
+            <option value="Arial">Arial</option>
+            <option value="Helvetica Neue">Helvetica Neue</option>
+            <option value="Courier New">Courier New</option>
+          </select>
+        </div>
+        <div class="range-row">
+          <label>Label size</label>
+          <input type="range" id="label-size" min="8" max="24" value="12"/>
+          <span class="val" id="label-size-val">12</span>
+        </div>
+        <div class="row">
+          <label>Label color</label>
+          <input type="color" id="label-color" value="#ffffff"/>
+        </div>
+        <div class="row">
+          <label>Scan lines</label>
+          <label class="toggle"><input type="checkbox" id="scan-lines"/><span class="toggle-slider"></span></label>
+        </div>
+        <div class="btn-row">
+          <button class="btn-solid" id="btn-build-overlay">Build overlay</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════ PRESETS ═══════════ -->
+  <div class="tab-pane" id="pane-presets">
+
+    <div class="section">
+      <div class="section-header" data-sec="presets">
+        <div class="section-title">Presets</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <div id="preset-list"></div>
+        <hr/>
+        <div class="row">
+          <label>Name</label>
+          <input type="text" id="new-preset-name" placeholder="My preset" style="width:150px"/>
+        </div>
+        <div class="btn-row">
+          <button class="btn-solid" id="btn-save-preset">Save</button>
+          <button class="btn-ghost" id="btn-export-presets">Export</button>
+          <button class="btn-ghost" id="btn-import-presets">Import</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" data-sec="about">
+        <div class="section-title">About</div>
+        <div class="section-chevron">▾</div>
+      </div>
+      <div class="section-body">
+        <p class="hint">
+          ASCIImp4 v1.0 — After Effects CEP Extension<br/>
+          Requires AE CC 2021 or later.<br/><br/>
+          Render output is a new composition in your project panel.<br/>
+          Nothing is written to disk until you use the Render Queue.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="main.js"></script>
+</body>
+</html>
