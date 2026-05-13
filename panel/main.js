@@ -1,18 +1,53 @@
 'use strict';
 
-/* ─── AE bridge via built-in CEP API (no CSInterface.js needed) ─── */
+/* ─── AE bridge ─── */
 function evalScript(code, cb) {
   const cep = window.__adobe_cep__;
-  if (cep) {
-    cep.evalScript(code, result => {
-      // result is either a plain string or {data, type} depending on CEP version
-      const val = (result && result.data !== undefined) ? result.data : result;
-      if (cb) cb(String(val));
-    });
-  } else {
-    // Not running inside AE
-    if (cb) cb('{"error":"Panel not running inside After Effects"}');
-  }
+  if (!cep) { if (cb) cb('{"error":"Not inside AE"}'); return; }
+  cep.evalScript(code, result => {
+    const val = (result && result.data !== undefined) ? result.data : result;
+    if (cb) cb(val == null ? '' : String(val));
+  });
+}
+
+/* ─── Script loader ─── */
+// Derive extension root from this HTML file's URL:
+// file:///path/to/com.asciimp4.panel/panel/index.html  →  /path/to/com.asciimp4.panel
+function getExtPath() {
+  try {
+    const parts = decodeURIComponent(new URL(window.location.href).pathname).split('/');
+    parts.pop(); // index.html
+    parts.pop(); // panel/
+    return parts.join('/');
+  } catch(e) { return ''; }
+}
+
+let _scriptsLoaded = false;
+
+function initScripts(cb) {
+  if (_scriptsLoaded) { cb(true); return; }
+  const ext = getExtPath();
+  if (!ext) { log('Cannot resolve extension path.', 'err'); cb(false); return; }
+  const j = ext + '/jsx/';
+  const code = `
+    try {
+      $.evalFile("${j}asciiEngine.jsx");
+      $.evalFile("${j}colorEngine.jsx");
+      $.evalFile("${j}overlayBuilder.jsx");
+      $.evalFile("${j}host.jsx");
+      "ok";
+    } catch(e) { "ERR:" + e.message + (e.line ? " L" + e.line : ""); }
+  `;
+  evalScript(code, result => {
+    if (result === 'ok') {
+      _scriptsLoaded = true;
+      log('Engine ready.', 'ok');
+      cb(true);
+    } else {
+      log('Engine load failed: ' + result, 'err');
+      cb(false);
+    }
+  });
 }
 
 /* ─── State ─── */
@@ -340,13 +375,25 @@ function updateAnalogousPreview() {
 $('hue-spread').addEventListener('input', updateAnalogousPreview);
 $('analog-count').addEventListener('input', updateAnalogousPreview);
 
+/* ─── Safe JSON parse helper ─── */
+function safeJSON(result, label) {
+  if (!result || result.trim() === '') {
+    log((label || 'Call') + ' returned empty — is a comp open in AE?', 'err');
+    return null;
+  }
+  try { return JSON.parse(result); }
+  catch(e) { log((label || 'Parse') + ' error: ' + result.slice(0, 120), 'err'); return null; }
+}
+
 /* ─── Layer selection ─── */
 function grabSelectedLayer(cb) {
-  evalScript('asciiHost.getSelectedLayer()', result => {
-    try {
-      const res = JSON.parse(result);
+  initScripts(ok => {
+    if (!ok) { if (cb) cb(false); return; }
+    evalScript('asciiHost.getSelectedLayer()', result => {
+      const res = safeJSON(result, 'getSelectedLayer');
+      if (!res) { if (cb) cb(false); return; }
       if (res.error || !res.index) {
-        log('No layer selected in AE — click a layer in the timeline first.', 'err');
+        log('No layer selected — click a layer in the AE timeline first.', 'err');
         if (cb) cb(false);
         return;
       }
@@ -355,10 +402,7 @@ function grabSelectedLayer(cb) {
       $('selected-layer-name').style.fontStyle = 'normal';
       log('Using layer: ' + res.name, 'ok');
       if (cb) cb(true);
-    } catch(e) {
-      log('Layer error: ' + e.message, 'err');
-      if (cb) cb(false);
-    }
+    });
   });
 }
 
@@ -367,55 +411,55 @@ $('btn-use-selected').addEventListener('click', () => grabSelectedLayer());
 /* ─── Main RENDER ─── */
 $('run-btn').addEventListener('click', () => {
   const doRender = () => {
-    if (!state.sourceLayer) {
-      log('No layer selected — click a layer in the AE timeline first.', 'err');
-      return;
-    }
     setProgress(1, 'Starting…');
     log('Starting ASCII render…', 'info');
     evalScript('asciiHost.renderASCII(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
-      try {
-        const res = JSON.parse(result);
-        if (res.error) { log('Error: ' + res.error, 'err'); }
-        else { log('Done! Comp: ' + res.compName + ' (' + res.frames + ' frames)', 'ok'); }
-      } catch(e) { log('Parse error: ' + result, 'err'); }
+      const res = safeJSON(result, 'renderASCII');
+      if (res) {
+        if (res.error) log('Render error: ' + res.error, 'err');
+        else log('Done! Comp: ' + res.compName + ' (' + res.frames + ' frames)', 'ok');
+      }
       setProgress(100);
     });
   };
 
-  // Auto-grab selected layer on render if not already set
   if (!state.sourceLayer) {
     grabSelectedLayer(ok => { if (ok) doRender(); });
   } else {
-    doRender();
+    initScripts(ok => { if (ok) doRender(); });
   }
 });
 
 /* ─── Build Overlay ─── */
 $('btn-build-overlay').addEventListener('click', () => {
-  log('Building data overlay layers…', 'info');
-  evalScript('asciiHost.buildOverlay(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
-    try {
-      const res = JSON.parse(result);
-      if (res.error) { log('Overlay error: ' + res.error, 'err'); }
-      else { log('Overlay built: ' + res.layerCount + ' layers created', 'ok'); }
-    } catch(e) { log('Overlay error: ' + e.message, 'err'); }
+  initScripts(ok => {
+    if (!ok) return;
+    log('Building data overlay…', 'info');
+    evalScript('asciiHost.buildOverlay(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
+      const res = safeJSON(result, 'buildOverlay');
+      if (res) {
+        if (res.error) log('Overlay error: ' + res.error, 'err');
+        else log('Overlay built: ' + res.layerCount + ' layers', 'ok');
+      }
+    });
   });
 });
 
 /* ─── Preview Clusters ─── */
 $('btn-preview-clusters').addEventListener('click', () => {
-  log('Analyzing clusters on current frame…', 'info');
-  evalScript('asciiHost.previewClusters(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
-    try {
-      const clusters = JSON.parse(result);
+  initScripts(ok => {
+    if (!ok) return;
+    log('Analyzing clusters…', 'info');
+    evalScript('asciiHost.previewClusters(' + JSON.stringify(JSON.stringify(state)) + ')', result => {
+      const clusters = safeJSON(result, 'previewClusters');
+      if (!clusters) return;
       const list = $('cluster-list');
-      if (!clusters || !clusters.length) { list.textContent = 'No clusters found.'; return; }
+      if (!clusters.length) { list.textContent = 'No clusters found.'; return; }
       list.innerHTML = clusters.map((c, i) =>
         `#${i+1}  cx:${c.cx} cy:${c.cy}  area:${c.area}  conf:${(c.conf*100).toFixed(0)}%`
       ).join('\n');
       log(clusters.length + ' clusters detected', 'ok');
-    } catch(e) { log('Cluster error: ' + e.message, 'err'); }
+    });
   });
 });
 
@@ -547,17 +591,13 @@ updateAnalogousPreview();
 renderPresetList();
 $('dynamic-opts').style.display = 'none';
 
-// Check AE connection
+// Check AE connection then load scripts
 const statusEl = $('ae-status');
 if (window.__adobe_cep__) {
-  evalScript('$.engineName', result => {
-    if (result && !result.includes('error')) {
-      statusEl.textContent = '● connected';
-      statusEl.style.color = 'var(--text2)';
-    } else {
-      statusEl.textContent = '● no comp open';
-      statusEl.style.color = '#ff6b6b';
-    }
+  statusEl.textContent = '● loading…';
+  initScripts(ok => {
+    statusEl.textContent = ok ? '● ready' : '● load error';
+    statusEl.style.color = ok ? 'var(--text2)' : '#ff6b6b';
   });
 } else {
   statusEl.textContent = '● not in AE';

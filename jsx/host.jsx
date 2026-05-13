@@ -1,9 +1,5 @@
 // ASCIImp4 - ExtendScript Host
-// Entry point for all CEP → AE communication
-
-#include "asciiEngine.jsx"
-#include "colorEngine.jsx"
-#include "overlayBuilder.jsx"
+// Entry point loaded via $.evalFile from main.js (no #include)
 
 var asciiHost = (function() {
 
