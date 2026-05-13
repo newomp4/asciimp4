@@ -198,22 +198,14 @@ var asciiEngine = (function() {
   }
 
   /* ── Main render function — expression-based ──
-     Creates ONE text layer with a Source Text expression.
-     The expression samples the source video every frame — no
-     pre-computation, no layer explosion, no crash.
-     The output comp is also dropped onto the original timeline.
+     Adds ONE text layer with a Source Text expression directly into
+     the source comp. The expression samples the source layer by index
+     every frame — no pre-computation, no layer explosion, no crash.
+
+     Horizontal sampling uses character width (cs * 0.55 for Courier New)
+     so the ASCII grid fills the full comp width instead of ~60% of it.
   ── */
   function render(comp, srcLayer, cfg) {
-    var outComp = createOutputComp(comp, cfg);
-
-    // ── Add the source footage as a hidden guide layer inside outComp ──
-    // The expression runs in outComp's context, so the source must live there.
-    var guideLayer = outComp.layers.add(srcLayer.source);
-    guideLayer.enabled  = false;
-    guideLayer.name     = '__src__';
-    guideLayer.inPoint  = 0;
-    guideLayer.outPoint = outComp.duration;
-
     var SETS = {
       standard: " .`'^\",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$",
       numbers:  " 1234567890",
@@ -227,22 +219,27 @@ var asciiEngine = (function() {
       ? (cfg.customChars || ' .:-=+*#@')
       : (SETS[cfg.charSet] || SETS.standard);
 
-    var cs       = parseInt(cfg.cellSize) || 24;
+    var cs  = parseInt(cfg.cellSize) || 24; // font size = row height
+    // Courier New character advance width ≈ fontSize × 0.55
+    // Using this as the horizontal step fills the full comp width
+    var cw  = Math.max(1, Math.round(cs * 0.55));
+
     var thresh   = ((cfg.lumaThresh  || 20)  / 255).toFixed(5);
     var aThresh  = ((cfg.alphaThresh || 128) / 255).toFixed(5);
     var contrast = ((cfg.contrast    || 100) / 100).toFixed(5);
     var gamma    = ((cfg.gamma       || 100) / 100).toFixed(5);
     var inv      = cfg.invertMap ? 'true' : 'false';
     var useA     = cfg.useAlpha  ? 'true' : 'false';
+    // Reference source layer by index — works in any comp without name lookup
+    var srcIdx   = srcLayer.index;
 
-    // Expression runs inside AE's JS engine, in the context of outComp.
-    // Source layer is referenced by name '__src__' (added above).
     var expr = [
       'try {',
-      '  var src = thisComp.layer("__src__");',
+      '  var src = thisComp.layer(' + srcIdx + ');',
       '  var W = thisComp.width, H = thisComp.height;',
-      '  var cs = ' + cs + ';',
-      '  var cols = Math.floor(W/cs), rows = Math.floor(H/cs);',
+      '  var cw = ' + cw + '; // char width (horiz sample step)',
+      '  var ch = ' + cs + '; // char height (vert sample step)',
+      '  var cols = Math.floor(W/cw), rows = Math.floor(H/ch);',
       '  var ramp = "' + exprStr(rawRamp) + '";',
       '  var thresh = ' + thresh + ', aT = ' + aThresh + ';',
       '  var con = ' + contrast + ', gam = ' + gamma + ';',
@@ -251,7 +248,7 @@ var asciiEngine = (function() {
       '  for (var r = 0; r < rows; r++) {',
       '    var line = "";',
       '    for (var c = 0; c < cols; c++) {',
-      '      var p = src.sampleImage([(c+0.5)*cs - W/2, (r+0.5)*cs - H/2], [0.5,0.5], true, time);',
+      '      var p = src.sampleImage([(c+0.5)*cw - W/2, (r+0.5)*ch - H/2], [0.5,0.5], true, time);',
       '      if (useA && p[3] < aT) { line += " "; continue; }',
       '      var L = 0.299*p[0] + 0.587*p[1] + 0.114*p[2];',
       '      L = (L - 0.5)*con + 0.5;',
@@ -269,32 +266,37 @@ var asciiEngine = (function() {
       '} catch(e) { "ERR: " + e.toString(); }'
     ].join('\n');
 
-    // ── Single text layer spanning the full duration ──
-    var textLayer = outComp.layers.addText(' ');
-    var textProp  = textLayer.property("Source Text");
+    // ── Remove any previous ASCII_Art layer so re-renders stay clean ──
+    for (var li = comp.numLayers; li >= 1; li--) {
+      if (comp.layers[li].name === 'ASCII_Art') { comp.layers[li].remove(); }
+    }
+
+    // ── Add text layer directly to the source comp ──
+    // No nested comp = no positioning mismatch, expression references
+    // the source layer by index in the same comp context.
+    var textLayer = comp.layers.addText(' ');
+    textLayer.name   = 'ASCII_Art';
+    textLayer.moveToBeginning(); // sit above other layers
+
+    var textProp = textLayer.property("Source Text");
     var td = textProp.value;
     td.font          = cfg.outFont || 'Courier New';
     td.fontSize      = cs;
     td.justification = ParagraphJustification.LEFT_JUSTIFY;
     td.fillColor     = hexToAEColor(cfg.colorPrimary || '#ffffff');
-    td.tracking      = parseInt(cfg.tracking) || 0;
+    td.tracking      = 0;
     td.leading       = cs;
     textProp.setValue(td);
 
-    // Position at top-left; baseline of first line sits at y = fontSize
+    // Anchor at baseline of first character so position [0,cs] = top-left
     textLayer.property("Position").setValue([0, cs]);
-    textLayer.property("Anchor Point").setValue([0, 0]);
+    textLayer.property("Anchor Point").setValue([0, cs]);
     textLayer.inPoint  = 0;
     textLayer.outPoint = comp.duration;
 
     textProp.expression = expr;
 
-    // ── Drop outComp onto the original comp's timeline, perfectly centered ──
-    var outLayer = comp.layers.add(outComp);
-    outLayer.property("Position").setValue([comp.width / 2, comp.height / 2]);
-    outLayer.property("Anchor Point").setValue([outComp.width / 2, outComp.height / 2]);
-
-    return { compName: outComp.name, frames: 1, method: 'expression' };
+    return { compName: comp.name, frames: 1, method: 'expression' };
   }
 
   /* ── Cluster detection ── */
