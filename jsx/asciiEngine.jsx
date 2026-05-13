@@ -1,6 +1,25 @@
 // ASCIImp4 - ASCII Engine
 // Core frame-sampling and ASCII conversion logic
 
+// JSON polyfill — AE ExtendScript sometimes ships without the JSON global
+;(function() {
+  if (typeof JSON !== 'undefined' && typeof JSON.parse === 'function') return;
+  function _str(val) {
+    if (val === null || val === undefined) return 'null';
+    var t = typeof val;
+    if (t === 'boolean' || t === 'number') return String(val);
+    if (t === 'string') return '"' + val.replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/\n/g,'\\n').replace(/\r/g,'\\r').replace(/\t/g,'\\t') + '"';
+    if (t !== 'object') return 'null';
+    if (typeof val.length === 'number') {
+      var a = []; for (var i=0;i<val.length;i++) a.push(_str(val[i])); return '['+a.join(',')+']';
+    }
+    var p = []; for (var k in val) { if (val.hasOwnProperty(k)) { var v=_str(val[k]); if(v!==undefined) p.push('"'+k+'":'+v); } }
+    return '{'+p.join(',')+'}';
+  }
+  var _JSON = { stringify: _str, parse: function(s) { return eval('('+s+')'); } };
+  try { $.global.JSON = _JSON; } catch(e) { JSON = _JSON; }
+})();
+
 var asciiEngine = (function() {
 
   /* ── Character ramps ── */
