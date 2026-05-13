@@ -230,12 +230,12 @@ var asciiEngine = (function() {
     var gamma    = ((cfg.gamma       || 100) / 100).toFixed(5);
     var inv      = cfg.invertMap ? 'true' : 'false';
     var useA     = cfg.useAlpha  ? 'true' : 'false';
-    // Reference source layer by index — works in any comp without name lookup
-    var srcIdx   = srcLayer.index;
+    // Use layer name — index shifts when the text layer is inserted above it
+    var srcName  = exprStr(srcLayer.name);
 
     var expr = [
       'try {',
-      '  var src = thisComp.layer(' + srcIdx + ');',
+      '  var src = thisComp.layer("' + srcName + '");',
       '  var W = thisComp.width, H = thisComp.height;',
       '  var cw = ' + cw + '; // char width (horiz sample step)',
       '  var ch = ' + cs + '; // char height (vert sample step)',
