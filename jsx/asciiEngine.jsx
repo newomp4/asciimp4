@@ -184,102 +184,71 @@ var asciiEngine = (function() {
     ];
   }
 
-  /* ── Add a text layer for one row at one time ── */
-  function addTextLayer(outComp, rowStr, rowIdx, grid, cfg, time, cellColor) {
-    var textLayer = outComp.layers.addText(rowStr);
-    var textDoc = textLayer.property("Source Text").value;
-
-    textDoc.font = cfg.outFont || 'Arial';
-    textDoc.fontSize = grid.cellW * 0.9;
-    textDoc.justification = ParagraphJustification.LEFT_JUSTIFY;
-
-    if (cellColor) {
-      textDoc.fillColor = cellColor;
-    } else {
-      textDoc.fillColor = hexToAEColor(cfg.colorPrimary || '#00e5ff');
-    }
-
-    textDoc.tracking = cfg.tracking || 0;
-    textDoc.leading = grid.cellH * ((cfg.leading || 100) / 100);
-
-    textLayer.property("Source Text").setValue(textDoc);
-
-    // Position
-    var y = rowIdx * grid.cellH + grid.cellH / 2;
-    var x = 0;
-    textLayer.property("Position").setValue([x, y]);
-    textLayer.property("Anchor Point").setValue([0, grid.cellH / 2]);
-
-    // Time
-    textLayer.inPoint = time;
-    textLayer.outPoint = time + (1 / (outComp.frameRate || 24));
-
-    return textLayer;
-  }
-
-  /* ── Main render function ── */
+  /* ── Main render function ──
+     One text layer per row, Source Text keyframed per frame.
+     This keeps layer count at O(rows) instead of O(rows × frames),
+     which is what was crashing AE before.
+  ── */
   function render(comp, srcLayer, cfg) {
-    var frameRate = comp.frameRate;
-    var duration = comp.duration;
-    var frameStep = parseInt(cfg.frameStep) || 1;
+    var frameRate  = comp.frameRate;
+    var duration   = comp.duration;
+    var frameStep  = parseInt(cfg.frameStep) || 1;
     var totalFrames = Math.floor(duration * frameRate);
-    var processedFrames = 0;
 
     var outComp = createOutputComp(comp, cfg);
     var grid = buildGrid(comp, srcLayer, cfg, 0);
-
-    // Pre-compute analogous colors if needed
     var colorPalette = colorEngine.buildPalette(cfg);
+    var baseColor = hexToAEColor(cfg.colorPrimary || '#ffffff');
 
+    // ── Create one persistent text layer per row ──
+    var rowProps = []; // { textProp }
+    for (var row = 0; row < grid.rows; row++) {
+      var textLayer = outComp.layers.addText(' ');
+      var textProp  = textLayer.property("Source Text");
+      var td = textProp.value;
+      td.font            = cfg.outFont || 'Courier New';
+      td.fontSize        = grid.cellW * 0.9;
+      td.justification   = ParagraphJustification.LEFT_JUSTIFY;
+      td.fillColor       = baseColor;
+      td.tracking        = parseInt(cfg.tracking) || 0;
+      textProp.setValue(td);
+
+      var y = row * grid.cellH + grid.cellH / 2;
+      textLayer.property("Position").setValue([0, y]);
+      textLayer.property("Anchor Point").setValue([0, grid.cellH / 2]);
+      textLayer.inPoint  = 0;
+      textLayer.outPoint = duration;
+
+      rowProps.push(textProp);
+    }
+
+    // ── Keyframe each row's Source Text per frame ──
+    var processedFrames = 0;
     for (var frameIdx = 0; frameIdx < totalFrames; frameIdx += frameStep) {
       var time = frameIdx / frameRate;
 
-      // Rebuild grid each frame if dynamic scaling
       if (cfg.dynamicScale) {
         grid = buildGrid(comp, srcLayer, cfg, time);
       }
 
-      // Apply hue cycle if needed
+      // Shallow-copy cfg so we can attach _hueOffset without JSON round-trip
       var frameCfg = cfg;
       if (cfg.analogCycle && cfg.cycleSpeed) {
-        frameCfg = JSON.parse(JSON.stringify(cfg));
-        var hueOffset = (time * cfg.cycleSpeed) % 360;
-        frameCfg._hueOffset = hueOffset;
+        frameCfg = {};
+        for (var fk in cfg) { if (cfg.hasOwnProperty(fk)) frameCfg[fk] = cfg[fk]; }
+        frameCfg._hueOffset = (time * (cfg.cycleSpeed || 30)) % 360;
       }
 
-      // Render all rows for this frame
-      for (var row = 0; row < grid.rows; row++) {
-        var rowChars = buildRowString(srcLayer, row, grid, frameCfg, time);
-        if (rowChars.replace(/^\s+|\s+$/g, '').length === 0) continue;
+      for (var row2 = 0; row2 < grid.rows; row2++) {
+        if (row2 >= rowProps.length) continue;
 
-        // Determine color for this row
-        var cellColor = colorEngine.getRowColor(row, grid.rows, time, frameCfg, colorPalette);
+        var rowChars = buildRowString(srcLayer, row2, grid, frameCfg, time);
+        var rowColor = colorEngine.getRowColor(row2, grid.rows, time, frameCfg, colorPalette);
 
-        // For source-color mode, we need per-cell, so we add individual layers
-        if (frameCfg.colorMode === 'source' || frameCfg.colorMode === 'glitch' || frameCfg.perCharTint) {
-          // Add per-column text layers (expensive but accurate)
-          for (var col = 0; col < grid.cols; col++) {
-            var ch = rowChars.charAt(col);
-            if (ch === ' ') continue;
-            var cell = sampleCell(srcLayer, col, row, grid, time);
-            var cc = colorEngine.getCellColor(cell, col, row, grid, time, frameCfg, colorPalette);
-            var colLayer = outComp.layers.addText(ch);
-            var td = colLayer.property("Source Text").value;
-            td.font = cfg.outFont || 'Arial';
-            td.fontSize = grid.cellW * 0.9;
-            td.fillColor = cc;
-            td.tracking = 0;
-            colLayer.property("Source Text").setValue(td);
-            var px = col * grid.cellW;
-            var py = row * grid.cellH + grid.cellH / 2;
-            colLayer.property("Position").setValue([px, py]);
-            colLayer.property("Anchor Point").setValue([0, grid.cellH / 2]);
-            colLayer.inPoint = time;
-            colLayer.outPoint = time + (1 / frameRate);
-          }
-        } else {
-          addTextLayer(outComp, rowChars, row, grid, frameCfg, time, cellColor);
-        }
+        var tdoc = rowProps[row2].value;
+        tdoc.text      = rowChars;
+        tdoc.fillColor = rowColor;
+        rowProps[row2].setValueAtTime(time, tdoc);
       }
       processedFrames++;
     }
