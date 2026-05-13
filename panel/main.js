@@ -1,19 +1,17 @@
 'use strict';
 
-/* ─── CSInterface bridge ─── */
-let cs;
-try {
-  cs = new CSInterface();
-} catch (e) {
-  cs = null;
-}
-
+/* ─── AE bridge via built-in CEP API (no CSInterface.js needed) ─── */
 function evalScript(code, cb) {
-  if (cs) {
-    cs.evalScript(code, cb || function(){});
+  const cep = window.__adobe_cep__;
+  if (cep) {
+    cep.evalScript(code, result => {
+      // result is either a plain string or {data, type} depending on CEP version
+      const val = (result && result.data !== undefined) ? result.data : result;
+      if (cb) cb(String(val));
+    });
   } else {
-    log('(no AE) ' + code.slice(0, 60), 'info');
-    if (cb) cb('{}');
+    // Not running inside AE
+    if (cb) cb('{"error":"Panel not running inside After Effects"}');
   }
 }
 
@@ -548,3 +546,20 @@ updateCharsetPreview();
 updateAnalogousPreview();
 renderPresetList();
 $('dynamic-opts').style.display = 'none';
+
+// Check AE connection
+const statusEl = $('ae-status');
+if (window.__adobe_cep__) {
+  evalScript('$.engineName', result => {
+    if (result && !result.includes('error')) {
+      statusEl.textContent = '● connected';
+      statusEl.style.color = 'var(--text2)';
+    } else {
+      statusEl.textContent = '● no comp open';
+      statusEl.style.color = '#ff6b6b';
+    }
+  });
+} else {
+  statusEl.textContent = '● not in AE';
+  statusEl.style.color = '#ff6b6b';
+}
